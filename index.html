@@ -1,0 +1,300 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Coach Dashboard</title>
+
+<style>
+:root{
+  --bg:#0b0d10;
+  --ink:#ffffff;
+  --muted:rgba(255,255,255,.62);
+  --line:rgba(255,255,255,.10);
+  --radius:26px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  background:
+    radial-gradient(900px 500px at 15% 0%, rgba(255,255,255,.08), transparent 55%),
+    radial-gradient(900px 500px at 85% 0%, rgba(255,255,255,.06), transparent 55%),
+    var(--bg);
+  color:var(--ink);
+}
+.top{
+  position:sticky;top:0;z-index:10;
+  backdrop-filter: blur(14px);
+  background: rgba(11,13,16,.72);
+  border-bottom:1px solid var(--line);
+}
+.topInner{
+  max-width:1200px;margin:0 auto;
+  padding:16px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.kicker{font-size:11px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;}
+.subkicker{margin-top:6px;font-size:12px;color:var(--muted);font-weight:650;}
+.pill{
+  padding:10px 14px;border:1px solid var(--line);border-radius:999px;
+  background:rgba(255,255,255,.04);font-size:12px;font-weight:700;
+}
+.page{max-width:1200px;margin:0 auto;padding:34px 20px 80px;}
+
+.hero{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  margin-bottom:22px;
+}
+.name{font-size:52px;font-weight:950;letter-spacing:-2px;}
+.teamTag{
+  padding:10px 14px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04);font-size:12px;font-weight:900;
+  letter-spacing:1px;text-transform:uppercase;
+}
+
+.layout{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+.card{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:rgba(255,255,255,.03);
+  padding:20px;
+}
+.cardStrong{
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+}
+.sectionTitle{
+  font-size:11px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);
+}
+.big{margin-top:14px;font-size:28px;font-weight:950;}
+.sub{margin-top:8px;font-size:13px;color:var(--muted);white-space:pre-wrap;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
+.stat{
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+  border-radius:22px;padding:14px;
+}
+.statLabel{font-size:11px;color:var(--muted);font-weight:750;text-transform:uppercase;}
+.statValue{margin-top:8px;font-size:16px;font-weight:950;}
+
+.avatarWrap{
+  width:120px;height:120px;border-radius:30px;overflow:hidden;border:1px solid var(--line);
+  background:rgba(255,255,255,.05);position:relative;
+}
+.avatar{width:100%;height:100%;object-fit:cover;}
+.badge{
+  position:absolute;right:8px;bottom:8px;background:#fff;color:#000;
+  padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900;display:none;
+}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+button{
+  border:none;border-radius:999px;padding:10px 14px;
+  font-weight:900;font-size:11px;cursor:pointer;
+}
+.primary{background:#fff;color:#000;}
+.ghost{background:transparent;border:1px solid var(--line);color:#fff;}
+.disabled{opacity:.45;pointer-events:none;}
+
+select{
+  width:100%;padding:10px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04);color:#fff;font-weight:850;
+}
+
+.toast{
+  position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+  background:#fff;color:#000;padding:8px 14px;border-radius:999px;font-weight:850;display:none;
+}
+input[type=file]{display:none}
+</style>
+</head>
+
+<body>
+
+<div class="top">
+  <div class="topInner">
+    <div>
+      <div class="kicker" id="roleText">—</div>
+      <div class="subkicker" id="clubText">—</div>
+    </div>
+    <div class="pill" id="today">—</div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="hero">
+    <div class="name" id="coachName">LOADING</div>
+    <div class="teamTag" id="teamName">—</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- LEFT -->
+    <div>
+      <div class="card cardStrong">
+        <div class="sectionTitle">Next Event</div>
+        <div class="big" id="eventTitle">—</div>
+        <div class="sub" id="eventDetails"></div>
+
+        <div class="grid2">
+          <div class="stat">
+            <div class="statLabel">Location</div>
+            <div class="statValue" id="eventLocation">—</div>
+          </div>
+          <div class="stat">
+            <div class="statLabel">Expected</div>
+            <div class="statValue" id="expected">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="sectionTitle">Club Alerts</div>
+        <div class="sub" id="alerts">—</div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="card">
+        <div class="sectionTitle">Coach Profile</div>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:12px;">
+          <div class="avatarWrap">
+            <img id="avatar" class="avatar" />
+            <div id="unsavedBadge" class="badge">NEW</div>
+          </div>
+          <div style="flex:1;">
+            <div class="actions">
+              <button class="ghost" id="changePhotoBtn">Change Photo</button>
+              <button class="primary disabled" id="savePhotoBtn">Save</button>
+            </div>
+          </div>
+        </div>
+        <input id="fileInput" type="file" accept="image/*"/>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="sectionTitle">Switch Team</div>
+        <select id="teamSelect"></select>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let state=null;
+let pendingDataUrl=null;
+let lastSavedUrl="";
+
+function post(type,payload={}){ window.parent.postMessage({type,payload},"*"); }
+
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg||""; t.style.display=msg?"block":"none";
+  clearTimeout(window.__tt);
+  if(msg) window.__tt=setTimeout(()=>t.style.display="none",1600);
+}
+
+function setDisabled(btnId, disabled){
+  const b=document.getElementById(btnId);
+  if(!b) return;
+  disabled ? b.classList.add("disabled") : b.classList.remove("disabled");
+}
+
+function render(){
+  if(!state) return;
+
+  document.getElementById("roleText").textContent = "ROLE: Coach";
+  document.getElementById("clubText").textContent = "CLUB: " + (state.clubSlug || "—");
+  document.getElementById("today").textContent = state.today || "—";
+
+  const c = state.coach || {};
+  const fullName = ((c.firstName||"")+" "+(c.lastName||"")).trim();
+  document.getElementById("coachName").textContent = (fullName || "COACH").toUpperCase();
+
+  document.getElementById("teamName").textContent = state.team?.name || "—";
+
+  if (pendingDataUrl) {
+    document.getElementById("avatar").src = pendingDataUrl;
+  } else if (lastSavedUrl) {
+    document.getElementById("avatar").src = lastSavedUrl;
+  } else {
+    document.getElementById("avatar").src = c.photoUrl || "";
+  }
+
+  const evt = state.nextEvent;
+  document.getElementById("eventTitle").textContent = evt ? (evt.type || "EVENT") : "NO EVENT";
+  document.getElementById("eventDetails").textContent = evt ? `${evt.date||""} • ${evt.time||""}` : "";
+  document.getElementById("eventLocation").textContent = evt?.location || "—";
+  document.getElementById("expected").textContent = evt?.attendanceExpected ? evt.attendanceExpected : "—";
+
+  document.getElementById("alerts").textContent = state.alerts || "NO ALERTS";
+
+  const teams = state.teams || [];
+  const sel = document.getElementById("teamSelect");
+  sel.innerHTML = teams.map(t => {
+    const selected = t.id === state.selectedTeamId ? "selected" : "";
+    const label = t.name || t.id;
+    return `<option value="${t.id}" ${selected}>${label}</option>`;
+  }).join("");
+}
+
+window.addEventListener("message",(e)=>{
+  const m=e.data||{};
+  if(m.type==="STATE"){ state=m.payload; render(); }
+  if(m.type==="TOAST") toast(m.payload?.message || "");
+  if(m.type==="PHOTO_SAVED"){
+    if(m.payload?.ok){
+      toast("Saved");
+      pendingDataUrl=null;
+      setDisabled("savePhotoBtn", true);
+      document.getElementById("unsavedBadge").style.display="none";
+
+      const url = (m.payload.url || "").trim();
+      if(url){
+        lastSavedUrl = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+        document.getElementById("avatar").src = lastSavedUrl;
+        if(state?.coach) state.coach.photoUrl = url;
+      }
+    } else {
+      toast(m.payload?.message || "Failed");
+      setDisabled("savePhotoBtn", false);
+    }
+  }
+});
+
+document.getElementById("teamSelect").onchange = (e)=>{
+  post("SELECT_TEAM",{teamId:e.target.value});
+};
+
+document.getElementById("changePhotoBtn").onclick = ()=> document.getElementById("fileInput").click();
+
+document.getElementById("fileInput").onchange = (e)=>{
+  const f=e.target.files && e.target.files[0];
+  if(!f) return;
+
+  const r=new FileReader();
+  r.onload=()=>{
+    pendingDataUrl=String(r.result||"");
+    document.getElementById("avatar").src=pendingDataUrl;
+    setDisabled("savePhotoBtn", false);
+    document.getElementById("unsavedBadge").style.display="block";
+  };
+  r.readAsDataURL(f);
+};
+
+document.getElementById("savePhotoBtn").onclick = ()=>{
+  if(!pendingDataUrl) return;
+  setDisabled("savePhotoBtn", true);
+  toast("Saving…");
+  post("SAVE_COACH_PHOTO_DATAURL",{dataUrl: pendingDataUrl});
+};
+
+post("IFRAME_READY",{});
+</script>
+
+</body>
+</html>
