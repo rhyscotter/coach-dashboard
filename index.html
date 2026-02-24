@@ -231,7 +231,10 @@ function render(){
   document.getElementById("eventLocation").textContent = evt?.location || "—";
   document.getElementById("expected").textContent = evt?.attendanceExpected ? evt.attendanceExpected : "—";
 
-  document.getElementById("alerts").textContent = state.alerts || "NO ALERTS";
+  // ✅ UPDATED ALERTS: expects state.alert = { title, message } (or null)
+  const a = state.alert;
+  document.getElementById("alerts").textContent =
+    a ? ((a.title ? a.title + ": " : "") + (a.message || "")).trim() : "NO ALERTS";
 
   const teams = state.teams || [];
   const sel = document.getElementById("teamSelect");
