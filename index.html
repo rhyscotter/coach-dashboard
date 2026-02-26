@@ -17,6 +17,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:transparent;color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+
   .stage{
     min-height:100vh;
     background:
@@ -166,6 +167,7 @@
     backdrop-filter: blur(10px);
     display:none;z-index:9999;
   }
+
   .scheduleActions{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
 </style>
 </head>
@@ -259,23 +261,22 @@
 let state = null;
 let pendingDataUrl = "";
 
-/* ✅ Theming */
+// ✅ EXACT SAME theming logic as your working schedule html
 function applyThemeFromPayload(payload){
   const theme = payload?.theme || payload || null;
+
   const accent  = (theme?.accent  || "#7B2EFF");
   const accent2 = (theme?.accent2 || accent);
   const glow    = (theme?.glow    || "rgba(123,46,255,.18)");
+
   const r = document.documentElement.style;
   r.setProperty("--accent", accent);
   r.setProperty("--accent2", accent2);
   r.setProperty("--clubGlow", glow);
 }
 
-// ✅ Message bridge (works even when nested in another iframe)
 function post(type, payload = {}) {
-  const msg = { type, payload };
-  try { window.parent && window.parent.postMessage(msg, "*"); } catch(_) {}
-  try { window.top && window.top !== window.parent && window.top.postMessage(msg, "*"); } catch(_) {}
+  try { window.parent.postMessage({type, payload}, "*"); } catch(_) {}
 }
 
 function toast(msg){
@@ -340,20 +341,26 @@ function escapeHtml(s){
 window.addEventListener("message",(e)=>{
   const m=e.data||{};
 
-  if (m.type === "STATE") {
-    const p = m.payload || {};
-    if (p.theme) applyThemeFromPayload(p);
-    else if (p.accent || p.glow) applyThemeFromPayload(p);
-    state = p;
+  // ✅ THEME message (sent separately like schedule pages)
+  if (m.type === "THEME") {
+    applyThemeFromPayload(m.payload);
+    return;
+  }
+
+  if(m.type==="STATE"){
+    state=m.payload || {};
+    // also apply if theme included inside STATE
+    if (state.theme) applyThemeFromPayload(state);
     render();
     return;
   }
 
-  if (m.type === "THEME") { applyThemeFromPayload(m.payload); return; }
+  if(m.type==="TOAST"){
+    toast(m.payload?.message || "OK");
+    return;
+  }
 
-  if (m.type === "TOAST") { toast(m.payload?.message || "OK"); return; }
-
-  if (m.type === "PHOTO_SAVED") {
+  if(m.type==="PHOTO_SAVED"){
     const ok = !!m.payload?.ok;
     const statusEl = document.getElementById("photoStatus");
     statusEl.style.display="block";
@@ -364,7 +371,6 @@ window.addEventListener("message",(e)=>{
       document.getElementById("savePhotoBtn").disabled = true;
     }
     setTimeout(()=>{ statusEl.style.display="none"; }, 2500);
-    return;
   }
 });
 
@@ -374,11 +380,7 @@ document.getElementById("teamSelect").addEventListener("change",(ev)=>{
 
 document.getElementById("openScheduleListBtn").addEventListener("click",()=> post("OPEN_SCHEDULE_LIST",{}));
 document.getElementById("openScheduleCalBtn").addEventListener("click",()=> post("OPEN_SCHEDULE_CALENDAR",{}));
-
-document.getElementById("openCoachOfficeBtn").addEventListener("click",()=>{
-  try { console.log("Coach Office clicked"); } catch(_) {}
-  post("OPEN_COACH_OFFICE",{});
-});
+document.getElementById("openCoachOfficeBtn").addEventListener("click",()=> post("OPEN_COACH_OFFICE",{}));
 
 document.getElementById("fileInput").addEventListener("change",(ev)=>{
   const f = ev.target.files?.[0];
@@ -396,10 +398,14 @@ document.getElementById("savePhotoBtn").addEventListener("click",()=>{
   if(!state?.coach?.id) return toast("Missing coach id.");
   if(!pendingDataUrl) return toast("Choose a photo first.");
   document.getElementById("savePhotoBtn").disabled = true;
-  post("SAVE_COACH_PHOTO_DATAURL",{ coachId: state.coach.id, dataUrl: pendingDataUrl });
+
+  post("SAVE_COACH_PHOTO_DATAURL",{
+    coachId: state.coach.id,
+    dataUrl: pendingDataUrl
+  });
 });
 
-// Tell Wix we’re ready (also bridge-safe)
+// Tell Wix we’re ready
 post("IFRAME_READY",{});
 </script>
 </body>
