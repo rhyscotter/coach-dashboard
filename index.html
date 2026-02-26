@@ -158,15 +158,6 @@
   .btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);box-shadow:0 0 28px var(--clubGlow);}
   .btn:hover::after{transform:scaleX(1)}
   .btn:active{transform:translateY(0px) scale(.99);}
-  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-  .toast{
-    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-    background:rgba(0,0,0,.68);border:1px solid rgba(255,255,255,.12);
-    padding:12px 14px;border-radius:14px;color:#fff;font-weight:750;font-size:12px;
-    backdrop-filter: blur(10px);
-    display:none;z-index:9999;
-  }
 
   .scheduleActions{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
 </style>
@@ -174,11 +165,10 @@
 
 <body>
 <div class="stage">
-
   <div class="top">
     <div class="topInner">
       <div>
-        <div class="kicker" id="roleText">ROLE: Coach</div>
+        <div class="kicker">ROLE: Coach</div>
         <div class="subkicker" id="clubText">CLUB: —</div>
       </div>
       <div class="pill" id="today">—</div>
@@ -205,7 +195,7 @@
                 <button class="btn" id="openCoachOfficeBtn">Coach Office</button>
               </div>
             </div>
-            <div class="sub" id="teamHint">Choose a team to load the next event.</div>
+            <div class="sub">Choose a team to load the next event.</div>
           </div>
         </div>
 
@@ -230,12 +220,8 @@
         <div class="card">
           <div class="cardInner">
             <div class="sectionTitle">Coach Profile</div>
-
             <div class="photoRow">
-              <div class="avatar">
-                <img id="avatarImg" alt="Coach photo"/>
-              </div>
-
+              <div class="avatar"><img id="avatarImg" alt="Coach photo"/></div>
               <div style="flex:1;">
                 <div class="big" style="font-size:22px;margin-top:0;" id="coachMetaName">—</div>
                 <div class="sub" id="coachMetaClub">—</div>
@@ -250,20 +236,18 @@
             </div>
           </div>
         </div>
-      </div><!-- /RIGHT -->
-    </div><!-- /grid -->
-  </div><!-- /page -->
-
-  <div class="toast" id="toast"></div>
-</div><!-- /stage -->
+      </div><!-- right -->
+    </div><!-- grid -->
+  </div><!-- page -->
+</div><!-- stage -->
 
 <script>
 let state = null;
 let pendingDataUrl = "";
 
-// ✅ EXACT SAME theming logic as your working schedule html
+// ✅ EXACT theming function style from your working schedule html
 function applyThemeFromPayload(payload){
-  const theme = payload?.theme || payload || null;
+  const theme = payload?.theme || null;
 
   const accent  = (theme?.accent  || "#7B2EFF");
   const accent2 = (theme?.accent2 || accent);
@@ -275,16 +259,17 @@ function applyThemeFromPayload(payload){
   r.setProperty("--clubGlow", glow);
 }
 
-function post(type, payload = {}) {
-  try { window.parent.postMessage({type, payload}, "*"); } catch(_) {}
+function post(msg){
+  try { window.parent.postMessage(msg, "*"); } catch(_) {}
 }
 
-function toast(msg){
-  const t=document.getElementById("toast");
-  t.textContent=String(msg||"");
-  t.style.display="block";
-  clearTimeout(window.__toastTimer);
-  window.__toastTimer=setTimeout(()=>{t.style.display="none";},2200);
+function escapeHtml(s){
+  return String(s||"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 function render(){
@@ -329,58 +314,50 @@ function render(){
   document.getElementById("alertMsg").textContent = a?.message || "—";
 }
 
-function escapeHtml(s){
-  return String(s||"")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
 window.addEventListener("message",(e)=>{
-  const m=e.data||{};
+  const data = e.data || {};
+  if (!data.type) return;
 
-  // ✅ THEME message (sent separately like schedule pages)
-  if (m.type === "THEME") {
-    applyThemeFromPayload(m.payload);
+  // ✅ THEME message
+  if (data.type === "THEME") {
+    applyThemeFromPayload({ theme: data }); // wrap to match function signature
     return;
   }
 
-  if(m.type==="STATE"){
-    state=m.payload || {};
-    // also apply if theme included inside STATE
-    if (state.theme) applyThemeFromPayload(state);
+  // ✅ DASH INIT message (flat, like schedule pages)
+  if (data.type === "DASH_INIT") {
+    // apply theme if included
+    if (data.theme) applyThemeFromPayload(data);
+    state = data;
     render();
     return;
   }
 
-  if(m.type==="TOAST"){
-    toast(m.payload?.message || "OK");
-    return;
-  }
-
-  if(m.type==="PHOTO_SAVED"){
-    const ok = !!m.payload?.ok;
+  if (data.type === "PHOTO_SAVED") {
+    const ok = !!data.ok;
     const statusEl = document.getElementById("photoStatus");
     statusEl.style.display="block";
-    statusEl.textContent = ok ? "Saved." : ("Upload failed: " + (m.payload?.message || "Unknown"));
-    if(ok && m.payload?.url){
-      document.getElementById("avatarImg").src = m.payload.url;
+    statusEl.textContent = ok ? "Saved." : ("Upload failed: " + (data.message || "Unknown"));
+    if (ok && data.url){
+      document.getElementById("avatarImg").src = data.url;
       pendingDataUrl = "";
       document.getElementById("savePhotoBtn").disabled = true;
     }
     setTimeout(()=>{ statusEl.style.display="none"; }, 2500);
   }
+
+  if (data.type === "TOAST") {
+    // optional
+  }
 });
 
+// UI events (flat messages)
 document.getElementById("teamSelect").addEventListener("change",(ev)=>{
-  post("SELECT_TEAM",{ teamId: ev.target.value });
+  post({ type:"SELECT_TEAM", teamId: ev.target.value });
 });
-
-document.getElementById("openScheduleListBtn").addEventListener("click",()=> post("OPEN_SCHEDULE_LIST",{}));
-document.getElementById("openScheduleCalBtn").addEventListener("click",()=> post("OPEN_SCHEDULE_CALENDAR",{}));
-document.getElementById("openCoachOfficeBtn").addEventListener("click",()=> post("OPEN_COACH_OFFICE",{}));
+document.getElementById("openScheduleListBtn").addEventListener("click",()=> post({ type:"OPEN_SCHEDULE_LIST" }));
+document.getElementById("openScheduleCalBtn").addEventListener("click",()=> post({ type:"OPEN_SCHEDULE_CALENDAR" }));
+document.getElementById("openCoachOfficeBtn").addEventListener("click",()=> post({ type:"OPEN_COACH_OFFICE" }));
 
 document.getElementById("fileInput").addEventListener("change",(ev)=>{
   const f = ev.target.files?.[0];
@@ -395,18 +372,19 @@ document.getElementById("fileInput").addEventListener("change",(ev)=>{
 });
 
 document.getElementById("savePhotoBtn").addEventListener("click",()=>{
-  if(!state?.coach?.id) return toast("Missing coach id.");
-  if(!pendingDataUrl) return toast("Choose a photo first.");
+  if(!state?.coach?.id) return;
+  if(!pendingDataUrl) return;
   document.getElementById("savePhotoBtn").disabled = true;
 
-  post("SAVE_COACH_PHOTO_DATAURL",{
+  post({
+    type:"SAVE_COACH_PHOTO_DATAURL",
     coachId: state.coach.id,
     dataUrl: pendingDataUrl
   });
 });
 
 // Tell Wix we’re ready
-post("IFRAME_READY",{});
+post({ type:"IFRAME_READY" });
 </script>
 </body>
 </html>
