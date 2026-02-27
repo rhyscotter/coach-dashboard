@@ -4,19 +4,27 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Coach Dashboard</title>
+
 <style>
   :root{
     --panel:rgba(17,17,17,.88);
     --border:rgba(255,255,255,.10);
     --text:#fff;
     --muted:rgba(255,255,255,.62);
+
+    /* ✅ club theme (overridden by DASH_INIT payload.theme) */
     --accent:#7B2EFF;
     --accent2:#B266FF;
     --clubGlow: rgba(123,46,255,.18);
+
     --radius:26px;
   }
+
   *{box-sizing:border-box}
-  body{margin:0;background:transparent;color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  body{
+    margin:0;background:transparent;color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  }
 
   .stage{
     min-height:100vh;
@@ -74,8 +82,7 @@
   }
   .name::after{
     content:"";position:absolute;left:0;bottom:0;height:6px;width:100%;
-    border-radius:999px;
-    background:linear-gradient(90deg, var(--accent), transparent);
+    border-radius:999px;background:linear-gradient(90deg, var(--accent), transparent);
     animation:underlineSweep 1.8s linear infinite;
   }
   @keyframes underlineSweep{
@@ -113,8 +120,8 @@
 
   .sectionTitle{
     font-family:Impact,Haettenschweiler,'Arial Narrow Bold',sans-serif;
-    font-size:18px;text-transform:uppercase;letter-spacing:.8px;margin:0;padding-bottom:8px;
-    position:relative;color:rgba(255,255,255,.92);
+    font-size:18px;text-transform:uppercase;letter-spacing:.8px;
+    margin:0;padding-bottom:8px;position:relative;color:rgba(255,255,255,.92);
   }
   .sectionTitle::after{
     content:"";position:absolute;left:0;bottom:0;height:4px;width:100%;
@@ -155,9 +162,21 @@
     background:linear-gradient(90deg, var(--accent), transparent);
     transform:scaleX(0);transform-origin:left;transition:.18s ease;opacity:.95;
   }
-  .btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);box-shadow:0 0 28px var(--clubGlow);}
+  .btn:hover{
+    transform:translateY(-1px);background:rgba(255,255,255,.08);
+    border-color:rgba(255,255,255,.18);box-shadow:0 0 28px var(--clubGlow);
+  }
   .btn:hover::after{transform:scaleX(1)}
   .btn:active{transform:translateY(0px) scale(.99);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:rgba(0,0,0,.68);border:1px solid rgba(255,255,255,.12);
+    padding:12px 14px;border-radius:14px;color:#fff;font-weight:750;font-size:12px;
+    backdrop-filter: blur(10px);
+    display:none;z-index:9999;
+  }
 
   .scheduleActions{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
 </style>
@@ -165,10 +184,11 @@
 
 <body>
 <div class="stage">
+
   <div class="top">
     <div class="topInner">
       <div>
-        <div class="kicker">ROLE: Coach</div>
+        <div class="kicker" id="roleText">ROLE: Coach</div>
         <div class="subkicker" id="clubText">CLUB: —</div>
       </div>
       <div class="pill" id="today">—</div>
@@ -182,10 +202,12 @@
     </div>
 
     <div class="grid">
+      <!-- LEFT -->
       <div class="stack">
         <div class="card">
           <div class="cardInner">
             <div class="sectionTitle">Team</div>
+
             <div class="row" style="margin-top:10px;">
               <select class="select" id="teamSelect"></select>
 
@@ -195,7 +217,8 @@
                 <button class="btn" id="openCoachOfficeBtn">Coach Office</button>
               </div>
             </div>
-            <div class="sub">Choose a team to load the next event.</div>
+
+            <div class="sub" id="teamHint">Choose a team to load the next event.</div>
           </div>
         </div>
 
@@ -216,12 +239,17 @@
         </div>
       </div>
 
+      <!-- RIGHT -->
       <div class="stack">
         <div class="card">
           <div class="cardInner">
             <div class="sectionTitle">Coach Profile</div>
+
             <div class="photoRow">
-              <div class="avatar"><img id="avatarImg" alt="Coach photo"/></div>
+              <div class="avatar">
+                <img id="avatarImg" alt="Coach photo"/>
+              </div>
+
               <div style="flex:1;">
                 <div class="big" style="font-size:22px;margin-top:0;" id="coachMetaName">—</div>
                 <div class="sub" id="coachMetaClub">—</div>
@@ -234,157 +262,201 @@
                 <div class="sub" id="photoStatus" style="margin-top:10px;display:none;"></div>
               </div>
             </div>
+
           </div>
         </div>
-      </div><!-- right -->
-    </div><!-- grid -->
-  </div><!-- page -->
-</div><!-- stage -->
+      </div><!-- /RIGHT -->
+    </div><!-- /grid -->
+  </div><!-- /page -->
+
+  <div class="toast" id="toast"></div>
+</div><!-- /stage -->
 
 <script>
-let state = null;
-let pendingDataUrl = "";
-
-// ✅ EXACT theming function style from your working schedule html
-function applyThemeFromPayload(payload){
-  const theme = payload?.theme || null;
-
-  const accent  = (theme?.accent  || "#7B2EFF");
-  const accent2 = (theme?.accent2 || accent);
-  const glow    = (theme?.glow    || "rgba(123,46,255,.18)");
-
-  const r = document.documentElement.style;
-  r.setProperty("--accent", accent);
-  r.setProperty("--accent2", accent2);
-  r.setProperty("--clubGlow", glow);
-}
-
-function post(msg){
-  try { window.parent.postMessage(msg, "*"); } catch(_) {}
-}
-
-function escapeHtml(s){
-  return String(s||"")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function render(){
-  if(!state) return;
-
-  document.getElementById("clubText").textContent = "CLUB: " + (state.clubSlug || "—");
-  document.getElementById("today").textContent = state.today || "—";
-
-  const coachName = ((state.coach?.firstName||"") + " " + (state.coach?.lastName||"")).trim() || "COACH";
-  document.getElementById("coachName").textContent = coachName.toUpperCase();
-  document.getElementById("coachMetaName").textContent = coachName;
-  document.getElementById("coachMetaClub").textContent = (state.clubSlug || "").toUpperCase();
-
-  const photoUrl = (state.coach?.photoUrl || "").trim();
-  document.getElementById("avatarImg").src = photoUrl || "data:image/svg+xml;base64," + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-      <rect width="100%" height="100%" fill="#111"/>
-      <circle cx="100" cy="85" r="38" fill="#222"/>
-      <rect x="45" y="130" width="110" height="50" rx="25" fill="#222"/>
-    </svg>
-  `);
-
-  const sel = document.getElementById("teamSelect");
-  const teams = Array.isArray(state.teams) ? state.teams : [];
-  const selected = state.selectedTeamId || "";
-
-  sel.innerHTML = teams.map(t => {
-    const id = String(t.id||"");
-    const name = String(t.name||id||"");
-    const isSel = id === selected ? "selected" : "";
-    return `<option value="${escapeHtml(id)}" ${isSel}>${escapeHtml(name)}</option>`;
-  }).join("");
-
-  const ev = state.nextEvent;
-  document.getElementById("eventTitle").textContent = ev?.title || "No upcoming events";
-  document.getElementById("eventMeta").textContent = ev
-    ? `${ev.date || ""}${ev.time ? " • " + ev.time : ""}${ev.location ? "\n" + ev.location : ""}${ev.attendanceExpected ? "\nExpected: " + ev.attendanceExpected : ""}`
-    : "—";
-
-  const a = state.alert;
-  document.getElementById("alertTitle").textContent = a?.title || "No alerts";
-  document.getElementById("alertMsg").textContent = a?.message || "—";
-}
-
-window.addEventListener("message",(e)=>{
-  const data = e.data || {};
-  if (!data.type) return;
-
-  // ✅ THEME message
-  if (data.type === "THEME") {
-    applyThemeFromPayload({ theme: data }); // wrap to match function signature
-    return;
+  // ----------------------------
+  // DEBUG helpers
+  // ----------------------------
+  function ilog(label, obj){
+    try { console.log("🟪 IFRAME:", label, obj ?? ""); } catch(_) {}
   }
 
-  // ✅ DASH INIT message (flat, like schedule pages)
-  if (data.type === "DASH_INIT") {
-    // apply theme if included
-    if (data.theme) applyThemeFromPayload(data);
-    state = data;
-    render();
-    return;
+  let state = null;
+  let pendingDataUrl = "";
+
+  function applyThemeFromPayload(payload){
+    // ✅ EXACT SAME PATTERN as your working Event iframe:
+    // applyThemeFromPayload(data) where data.theme exists
+    const theme = payload?.theme || null;
+
+    const accent  = (theme?.accent  || "#7B2EFF");
+    const accent2 = (theme?.accent2 || accent);
+    const glow    = (theme?.glow    || "rgba(123,46,255,.18)");
+
+    const r = document.documentElement.style;
+    r.setProperty("--accent", accent);
+    r.setProperty("--accent2", accent2);
+    r.setProperty("--clubGlow", glow);
+
+    ilog("Theme applied", { accent, accent2, glow });
   }
 
-  if (data.type === "PHOTO_SAVED") {
-    const ok = !!data.ok;
-    const statusEl = document.getElementById("photoStatus");
-    statusEl.style.display="block";
-    statusEl.textContent = ok ? "Saved." : ("Upload failed: " + (data.message || "Unknown"));
-    if (ok && data.url){
-      document.getElementById("avatarImg").src = data.url;
-      pendingDataUrl = "";
-      document.getElementById("savePhotoBtn").disabled = true;
+  function post(type, payload = {}) {
+    try {
+      window.parent.postMessage({ type, payload }, "*");
+      ilog("Sent to parent", { type, payload });
+    } catch (e) {
+      ilog("postMessage FAILED", e);
     }
-    setTimeout(()=>{ statusEl.style.display="none"; }, 2500);
   }
 
-  if (data.type === "TOAST") {
-    // optional
+  function toast(msg){
+    const t=document.getElementById("toast");
+    t.textContent=String(msg||"");
+    t.style.display="block";
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer=setTimeout(()=>{t.style.display="none";},2200);
   }
-});
 
-// UI events (flat messages)
-document.getElementById("teamSelect").addEventListener("change",(ev)=>{
-  post({ type:"SELECT_TEAM", teamId: ev.target.value });
-});
-document.getElementById("openScheduleListBtn").addEventListener("click",()=> post({ type:"OPEN_SCHEDULE_LIST" }));
-document.getElementById("openScheduleCalBtn").addEventListener("click",()=> post({ type:"OPEN_SCHEDULE_CALENDAR" }));
-document.getElementById("openCoachOfficeBtn").addEventListener("click",()=> post({ type:"OPEN_COACH_OFFICE" }));
+  function escapeHtml(s){
+    return String(s||"")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
-document.getElementById("fileInput").addEventListener("change",(ev)=>{
-  const f = ev.target.files?.[0];
-  if(!f) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingDataUrl = reader.result;
-    document.getElementById("avatarImg").src = pendingDataUrl;
-    document.getElementById("savePhotoBtn").disabled = false;
-  };
-  reader.readAsDataURL(f);
-});
+  function render(){
+    if(!state) return;
 
-document.getElementById("savePhotoBtn").addEventListener("click",()=>{
-  if(!state?.coach?.id) return;
-  if(!pendingDataUrl) return;
-  document.getElementById("savePhotoBtn").disabled = true;
+    document.getElementById("clubText").textContent = "CLUB: " + (state.clubSlug || "—");
+    document.getElementById("today").textContent = state.today || "—";
 
-  post({
-    type:"SAVE_COACH_PHOTO_DATAURL",
-    coachId: state.coach.id,
-    dataUrl: pendingDataUrl
+    const coachName = ((state.coach?.firstName||"") + " " + (state.coach?.lastName||"")).trim() || "COACH";
+    document.getElementById("coachName").textContent = coachName.toUpperCase();
+    document.getElementById("coachMetaName").textContent = coachName;
+    document.getElementById("coachMetaClub").textContent = (state.clubSlug || "").toUpperCase();
+
+    // photo
+    const photoUrl = (state.coach?.photoUrl || "").trim();
+    document.getElementById("avatarImg").src = photoUrl || "data:image/svg+xml;base64," + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+        <rect width="100%" height="100%" fill="#111"/>
+        <circle cx="100" cy="85" r="38" fill="#222"/>
+        <rect x="45" y="130" width="110" height="50" rx="25" fill="#222"/>
+      </svg>
+    `);
+
+    // teams
+    const sel = document.getElementById("teamSelect");
+    const teams = Array.isArray(state.teams) ? state.teams : [];
+    const selected = state.selectedTeamId || "";
+    sel.innerHTML = teams.map(t => {
+      const id = String(t.id||"");
+      const name = String(t.name||id||"");
+      const isSel = id === selected ? "selected" : "";
+      return `<option value="${escapeHtml(id)}" ${isSel}>${escapeHtml(name)}</option>`;
+    }).join("");
+
+    // next event
+    const ev = state.nextEvent;
+    document.getElementById("eventTitle").textContent = ev?.title || "No upcoming events";
+    document.getElementById("eventMeta").textContent = ev
+      ? `${ev.date || ""}${ev.time ? " • " + ev.time : ""}${ev.location ? "\n" + ev.location : ""}${ev.attendanceExpected ? "\nExpected: " + ev.attendanceExpected : ""}`
+      : "—";
+
+    // alert
+    const a = state.alert;
+    document.getElementById("alertTitle").textContent = a?.title || "No alerts";
+    document.getElementById("alertMsg").textContent = a?.message || "—";
+  }
+
+  // ----------------------------
+  // Incoming messages from Wix
+  // ----------------------------
+  window.addEventListener("message",(e)=>{
+    const m = e.data || {};
+    ilog("Received from parent", m);
+
+    if (m.type === "DASH_INIT") {
+      // ✅ Apply club theme exactly like Event:
+      applyThemeFromPayload(m);
+
+      state = m.payload || {};
+      render();
+      return;
+    }
+
+    if (m.type === "TOAST") {
+      toast(m.payload?.message || "OK");
+      return;
+    }
+
+    if (m.type === "PHOTO_SAVED") {
+      const ok = !!m.payload?.ok;
+      const statusEl = document.getElementById("photoStatus");
+      statusEl.style.display="block";
+      statusEl.textContent = ok ? "Saved." : ("Upload failed: " + (m.payload?.message || "Unknown"));
+      if(ok && m.payload?.url){
+        document.getElementById("avatarImg").src = m.payload.url;
+        pendingDataUrl = "";
+        document.getElementById("savePhotoBtn").disabled = true;
+      }
+      setTimeout(()=>{ statusEl.style.display="none"; }, 2500);
+      return;
+    }
   });
-});
 
-// Tell Wix we’re ready
-post({ type:"IFRAME_READY" });
+  // ----------------------------
+  // UI events → post to Wix
+  // ----------------------------
+  document.getElementById("teamSelect").addEventListener("change",(ev)=>{
+    post("SELECT_TEAM",{ teamId: ev.target.value });
+  });
+
+  document.getElementById("openScheduleListBtn").addEventListener("click",()=>{
+    post("OPEN_SCHEDULE_LIST",{});
+  });
+
+  document.getElementById("openScheduleCalBtn").addEventListener("click",()=>{
+    post("OPEN_SCHEDULE_CALENDAR",{});
+  });
+
+  document.getElementById("openCoachOfficeBtn").addEventListener("click",()=>{
+    ilog("Coach Office clicked", {});
+    post("OPEN_COACH_OFFICE",{});
+  });
+
+  document.getElementById("fileInput").addEventListener("change", async (ev)=>{
+    const f = ev.target.files?.[0];
+    if(!f) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingDataUrl = reader.result;
+      document.getElementById("avatarImg").src = pendingDataUrl;
+      document.getElementById("savePhotoBtn").disabled = false;
+    };
+    reader.readAsDataURL(f);
+  });
+
+  document.getElementById("savePhotoBtn").addEventListener("click",()=>{
+    if(!state?.coach?.id) return toast("Missing coach id.");
+    if(!pendingDataUrl) return toast("Choose a photo first.");
+    document.getElementById("savePhotoBtn").disabled = true;
+
+    post("SAVE_COACH_PHOTO_DATAURL",{
+      coachId: state.coach.id,
+      dataUrl: pendingDataUrl
+    });
+  });
+
+  // ----------------------------
+  // Boot: tell Wix iframe is ready
+  // ----------------------------
+  ilog("Booted, sending IFRAME_READY", { href: location.href });
+  post("IFRAME_READY",{});
 </script>
+
 </body>
 </html>
